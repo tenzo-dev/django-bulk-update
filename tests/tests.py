@@ -1,6 +1,6 @@
 import random
 
-from datetime import date, time, timedelta
+from datetime import date, time, timedelta, datetime
 from decimal import Decimal
 from unittest import skipUnless
 
@@ -25,9 +25,9 @@ class BulkUpdateTests(TestCase):
         create_fixtures()
 
     def _test_field(self, field, idx_to_value_function):
-        '''
-        Helper to do repeative simple tests on one field.
-        '''
+        """
+        Helper to do repetitive simple tests on one field.
+        """
 
         # set
         people = Person.objects.order_by('pk').all()
@@ -569,6 +569,34 @@ class BulkUpdateTests(TestCase):
                 self.assertEquals(person.name, 'original name')
                 self.assertEquals(person.text, 'changed text')
 
+    def test_auto_now(self):
+        # initialize
+        before = datetime.now()
+        people = Person.objects.order_by('pk').all()
+        for person in people:
+            person.name = 'original name'
+            person.text = 'original text'
+            person.save()
+        after = datetime.now()
+
+        # check
+        people = Person.objects.order_by('pk').all()
+        for person in people:
+            self.assertGreater(person.auto_now, before)
+            self.assertLess(person.auto_now, after)
+
+        # update
+        before = datetime.now()
+        count = Person.objects.bulk_update(people, exclude_fields=['name'])
+        after = datetime.now()
+
+        # check
+        people = Person.objects.order_by('pk').all()
+        self.assertEquals(count, people.count())
+        for person in people:
+            self.assertGreater(person.auto_now, before)
+            self.assertLess(person.auto_now, after)
+
 
 class NumQueriesTest(TestCase):
 
@@ -700,7 +728,7 @@ class NumQueriesTest(TestCase):
 
 class GetFieldsTests(TestCase):
 
-    total_fields = 24
+    total_fields = 25
 
     def setUp(self):
         create_fixtures()
@@ -764,14 +792,14 @@ class GetFieldsTests(TestCase):
         update_fields = ['age', 'email', 'text']
         exclude_fields = []
         fields = helper.get_fields(update_fields, exclude_fields, meta)
-        self._assertEquals(fields, ['age', 'email', 'text'])
+        self._assertEquals(fields, ['age', 'email', 'text', 'auto_now'])
 
     def test_update_fields_and_exclude_fields(self):
         meta = Person.objects.first()._meta
         update_fields = ['age', 'email', 'text']
         exclude_fields = ['email', 'height']
         fields = helper.get_fields(update_fields, exclude_fields, meta)
-        self._assertEquals(fields, ['age', 'text'])
+        self._assertEquals(fields, ['age', 'text', 'auto_now'])
 
     def test_empty_update_fields(self):
         meta = Person.objects.first()._meta
@@ -801,14 +829,14 @@ class GetFieldsTests(TestCase):
         update_fields = ['role', 'my_file']
         exclude_fields = None
         fields = helper.get_fields(update_fields, exclude_fields, meta)
-        self._assertEquals(fields, ['role', 'my_file'])
+        self._assertEquals(fields, ['role', 'my_file', 'auto_now'])
 
     def test_get_foreignkey_with_id_suffix(self):
         meta = Person.objects.first()._meta
         update_fields = ['role_id', 'my_file']
         exclude_fields = None
         fields = helper.get_fields(update_fields, exclude_fields, meta)
-        self._assertEquals(fields, ['role', 'my_file'])
+        self._assertEquals(fields, ['role', 'my_file', 'auto_now'])
 
     def test_obj_argument(self):
         obj = Person.objects.first()
@@ -849,7 +877,7 @@ class GetFieldsTests(TestCase):
         update_fields = ['date', 'time', 'age']
         exclude_fields = None
         fields = helper.get_fields(update_fields, exclude_fields, meta, obj)
-        self._assertEquals(fields, ['date', 'time', 'age'])
+        self._assertEquals(fields, ['date', 'time', 'age', 'auto_now'])
 
     def test_update_fields_over_not_deferred_field_02(self):
         obj = Person.objects.only('name', 'age', 'height').first()
@@ -864,7 +892,7 @@ class GetFieldsTests(TestCase):
         update_fields = ('age', 'email', 'text')
         exclude_fields = ('email', 'height')
         fields = helper.get_fields(update_fields, exclude_fields, meta)
-        self._assertEquals(fields, ['age', 'text'])
+        self._assertEquals(fields, ['age', 'text', 'auto_now'])
 
     def test_validate_fields(self):
         meta = Person.objects.first()._meta

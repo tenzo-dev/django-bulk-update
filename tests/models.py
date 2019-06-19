@@ -35,6 +35,7 @@ class Person(models.Model):
     text = models.TextField()
     url = models.URLField()
 
+    auto_now = models.DateTimeField(null=True, blank=True, auto_now=True)
     date_time = models.DateTimeField(null=True, blank=True)
     date = models.DateField(null=True, blank=True)
     time = models.TimeField(null=True, blank=True)

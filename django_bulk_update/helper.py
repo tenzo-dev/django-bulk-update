@@ -3,6 +3,7 @@
 Main module with the bulk_update function.
 """
 import itertools
+import datetime
 
 from collections import defaultdict
 
@@ -98,23 +99,44 @@ def get_fields(update_fields, exclude_fields, meta, obj=None):
         field
         for field in meta.concrete_fields
         if (
-            not field.primary_key and
-            field.attname not in deferred_fields and
-            field.attname not in exclude_fields and
-            field.name not in exclude_fields and
-            (
-                update_fields is None or
-                field.attname in update_fields or
-                field.name in update_fields
+            not field.primary_key
+            and field.attname not in deferred_fields
+            and field.attname not in exclude_fields
+            and field.name not in exclude_fields
+            and (
+                update_fields is None
+                or field.attname in update_fields
+                or field.name in update_fields
             )
         )
     ]
 
+    if fields:
+        fields += [
+            field
+            for field in meta.concrete_fields
+            if (
+                    not field.primary_key
+                    and field.attname not in deferred_fields
+                    and field.attname not in exclude_fields
+                    and field.name not in exclude_fields
+                    and field not in fields
+                    and getattr(field, 'auto_now', False)
+            )
+        ]
+
     return fields
 
 
-def bulk_update(objs, meta=None, update_fields=None, exclude_fields=None,
-                using='default', batch_size=None, pk_field='pk'):
+def bulk_update(
+    objs,
+    meta=None,
+    update_fields=None,
+    exclude_fields=None,
+    using="default",
+    batch_size=None,
+    pk_field="pk",
+):
     assert batch_size is None or batch_size > 0
 
     # force to retrieve objs from the DB at the beginning,
@@ -125,11 +147,18 @@ def bulk_update(objs, meta=None, update_fields=None, exclude_fields=None,
     batch_size = batch_size or len(objs)
 
     if meta:
-        fields = get_fields(update_fields, exclude_fields, meta)
+        fields = get_fields(
+            update_fields, exclude_fields, meta
+        )
     else:
         meta = objs[0]._meta
         if update_fields is not None:
-            fields = get_fields(update_fields, exclude_fields, meta, objs[0])
+            fields = get_fields(
+                update_fields,
+                exclude_fields,
+                meta,
+                objs[0],
+            )
         else:
             fields = None
 
@@ -177,6 +206,15 @@ def bulk_update(objs, meta=None, update_fields=None, exclude_fields=None,
             loaded_fields = fields or get_fields(update_fields, exclude_fields, meta, obj)
 
             for field in loaded_fields:
+                if getattr(field, 'auto_now', False):
+                    if isinstance(field, models.DateTimeField):
+                        setattr(obj, field.attname, datetime.datetime.now())
+                    elif isinstance(field, models.DateField):
+                        setattr(obj, field.attname, datetime.date.today())
+                    elif isinstance(field, models.TimeField):
+                        setattr(obj, field.attname, datetime.datetime.now().time())
+                    else:
+                        setattr(obj, field.attname, datetime.datetime.now())
                 value, placeholder = _as_sql(obj, field, query, compiler, connection)
                 parameters[field].extend(flatten([pk_value, value], types=tuple))
                 placeholders[field].append(placeholder)
